@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Options for the fksdbauth plugin
+ * Options for the authfksdb plugin
  *
  * @author Michal Koutný <michal@fykos.cz>
  */

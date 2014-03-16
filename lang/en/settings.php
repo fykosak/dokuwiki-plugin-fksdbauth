@@ -1,6 +1,6 @@
 <?php
 /**
- * english language file for fksdbauth plugin
+ * english language file for authfksdb plugin
  *
  * @author Michal Koutný <michal@fykos.cz>
  */
