@@ -1,16 +1,46 @@
 <?php
+
 /**
  * DokuWiki Plugin fksdbauth (Auth Component)
  *
  * @license GPL 2 http://www.gnu.org/licenses/gpl-2.0.html
  * @author  Michal Koutný <michal@fykos.cz>
  */
-
 // must be run within Dokuwiki
-if(!defined('DOKU_INC')) die();
+if (!defined('DOKU_INC'))
+    die();
 
 class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
 
+    private static $contestMaps = array(
+        'fykos' => 1,
+        'vyfuk' => 2,
+    );
+
+    /**
+     * @var PDO
+     */
+    private $connection;
+
+    /**
+     * @var array items with array keys: name, mail, grps, hash, login_id
+     */
+    private $usersCache;
+
+    /**
+     * @var array
+     */
+    private $groupsCache;
+
+    /**
+     * @var email to user mapping
+     */
+    private $emailKey;
+
+    /**
+     * @var email to user mapping
+     */
+    private $loginKey;
 
     /**
      * Constructor.
@@ -18,24 +48,21 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
     public function __construct() {
         parent::__construct(); // for compatibility
 
-        // FIXME set capabilities accordingly
-        //$this->cando['addUser']     = false; // can Users be created?
-        //$this->cando['delUser']     = false; // can Users be deleted?
-        //$this->cando['modLogin']    = false; // can login names be changed?
-        //$this->cando['modPass']     = false; // can passwords be changed?
-        //$this->cando['modName']     = false; // can real names be changed?
-        //$this->cando['modMail']     = false; // can emails be changed?
-        //$this->cando['modGroups']   = false; // can groups be changed?
-        //$this->cando['getUsers']    = false; // can a (filtered) list of users be retrieved?
-        //$this->cando['getUserCount']= false; // can the number of users be retrieved?
-        //$this->cando['getGroups']   = false; // can a list of available groups be retrieved?
-        //$this->cando['external']    = false; // does the module do external auth checking?
-        //$this->cando['logout']      = true; // can the user logout again? (eg. not possible with HTTP auth)
+        $this->cando['addUser'] = false; // can Users be created?
+        $this->cando['delUser'] = false; // can Users be deleted?
+        $this->cando['modLogin'] = false; // can login names be changed?
+        $this->cando['modPass'] = false; // can passwords be changed?
+        $this->cando['modName'] = false; // can real names be changed?
+        $this->cando['modMail'] = false; // can emails be changed?
+        $this->cando['modGroups'] = false; // can groups be changed?
+        $this->cando['getUsers'] = true; // can a (filtered) list of users be retrieved?
+        $this->cando['getUserCount'] = true; // can the number of users be retrieved?
+        $this->cando['getGroups'] = true; // can a list of available groups be retrieved?
+        $this->cando['external'] = false; // does the module do external auth checking?
+        $this->cando['logout'] = true; // can the user logout again? (eg. not possible with HTTP auth)
 
-        // FIXME intialize your auth system and set success to true, if successful
-        $this->success = true;
+        $this->success = $this->connectToDatabase() && $this->cacheUsers();
     }
-
 
     /**
      * Log off the current user [ OPTIONAL ]
@@ -52,25 +79,25 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      * @return  bool             true on successful auth
      */
     //public function trustExternal($user, $pass, $sticky = false) {
-        /* some example:
+    /* some example:
 
-        global $USERINFO;
-        global $conf;
-        $sticky ? $sticky = true : $sticky = false; //sanity check
+      global $USERINFO;
+      global $conf;
+      $sticky ? $sticky = true : $sticky = false; //sanity check
 
-        // do the checking here
+      // do the checking here
 
-        // set the globals if authed
-        $USERINFO['name'] = 'FIXME';
-        $USERINFO['mail'] = 'FIXME';
-        $USERINFO['grps'] = array('FIXME');
-        $_SERVER['REMOTE_USER'] = $user;
-        $_SESSION[DOKU_COOKIE]['auth']['user'] = $user;
-        $_SESSION[DOKU_COOKIE]['auth']['pass'] = $pass;
-        $_SESSION[DOKU_COOKIE]['auth']['info'] = $USERINFO;
-        return true;
+      // set the globals if authed
+      $USERINFO['name'] = 'FIXME';
+      $USERINFO['mail'] = 'FIXME';
+      $USERINFO['grps'] = array('FIXME');
+      $_SERVER['REMOTE_USER'] = $user;
+      $_SESSION[DOKU_COOKIE]['auth']['user'] = $user;
+      $_SESSION[DOKU_COOKIE]['auth']['pass'] = $pass;
+      $_SESSION[DOKU_COOKIE]['auth']['info'] = $USERINFO;
+      return true;
 
-        */
+     */
     //}
 
     /**
@@ -83,8 +110,14 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      * @return  bool
      */
     public function checkPass($user, $pass) {
-        // FIXME implement password check
-        return false; // return true if okay
+        // first search by email, then by login
+        $userData = $this->getUserData($user);
+        if (!$userData) {
+            return false;
+        }
+
+        $hash = sha1($userData['login_id'] . md5($pass));
+        return $hash == $userData['hash'];
     }
 
     /**
@@ -101,8 +134,13 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      * @return  array containing user data or false
      */
     public function getUserData($user) {
-        // FIXME implement
-        return false;
+        if (array_key_exists($user, $this->emailKey)) {
+            return $this->usersCache[$this->emailKey[$user]];
+        } else if (array_key_exists($user, $this->loginKey)) {
+            return $this->usersCache[$this->loginKey[$user]];
+        } else {
+            return false;
+        }
     }
 
     /**
@@ -124,7 +162,7 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      * @return bool|null
      */
     //public function createUser($user, $pass, $name, $mail, $grps = null) {
-        // FIXME implement
+    // FIXME implement
     //    return null;
     //}
 
@@ -138,7 +176,7 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      * @return  bool
      */
     //public function modifyUser($user, $changes) {
-        // FIXME implement
+    // FIXME implement
     //    return false;
     //}
 
@@ -151,7 +189,7 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      * @return  int    number of users deleted
      */
     //public function deleteUsers($users) {
-        // FIXME implement
+    // FIXME implement
     //    return false;
     //}
 
@@ -165,10 +203,15 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      * @param   array $filter    array of field/pattern pairs, null for no filter
      * @return  array list of userinfo (refer getUserData for internal userinfo details)
      */
-    //public function retrieveUsers($start = 0, $limit = -1, $filter = null) {
-        // FIXME implement
-    //    return array();
-    //}
+    public function retrieveUsers($start = 0, $limit = -1, $filter = null) {
+        $filtered = array_values($this->filterUsers($filter));
+
+        $result = array();
+        for ($i = $start; $i < min(count($filtered), $start + ($limit < 0 ? count($filtered) : $limit)); ++$i) {
+            $result[] = $filtered[$i];
+        }
+        return $result;
+    }
 
     /**
      * Return a count of the number of user which meet $filter criteria
@@ -179,10 +222,9 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      * @param  array $filter array of field/pattern pairs, empty array for no filter
      * @return int
      */
-    //public function getUserCount($filter = array()) {
-        // FIXME implement
-    //    return 0;
-    //}
+    public function getUserCount($filter = array()) {
+        return count($this->filterUsers($filter));
+    }
 
     /**
      * Define a group [implement only where required/possible]
@@ -193,7 +235,7 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      * @return  bool
      */
     //public function addGroup($group) {
-        // FIXME implement
+    // FIXME implement
     //    return false;
     //}
 
@@ -206,10 +248,14 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      * @param   int $limit
      * @return  array
      */
-    //public function retrieveGroups($start = 0, $limit = 0) {
-        // FIXME implement
-    //    return array();
-    //}
+    public function retrieveGroups($start = 0, $limit = 0) {
+        $result = array();
+        $groups = array_values($this->groupsCache);
+        for ($i = $start; $i < $start + ($limit == 0 ? count($this->groupsCache) : min(count($this->groupsCache), $limit)); ++$i) {
+            $result[] = $groups[$i];
+        }
+        return $result;
+    }
 
     /**
      * Return case sensitivity of the backend
@@ -282,8 +328,98 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      * @return bool
      */
     //public function useSessionCache($user) {
-      // FIXME implement
+    // FIXME implement
     //}
+
+    private function connectToDatabase() {
+        $dsn = 'mysql:host=' . $this->getConf('mysql_host') . ';dbname=' . $this->getConf('mysql_database');
+        $username = $this->getConf('mysql_user');
+        $passwd = $this->getConf('mysql_password');
+        $options = array(
+            PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES utf8',
+        );
+        try {
+            $this->connection = new PDO($dsn, $username, $passwd, $options);
+            return true;
+        } catch (PDOException $e) {
+            msg($e->getMessage(), -1);
+            return false;
+        }
+    }
+
+    private function cacheUsers() {
+        $contestId = self::$contestMaps[$this->getConf('contest')];
+        /*
+         * Cache users
+         */
+        $stmt = $this->connection->prepare('select *
+            from v_dokuwiki_user u
+            inner join v_dokuwiki_user_group ug on u.login_id = ug.login_id and ug.contest_id = :contest_id
+            order by name_lex');
+        $stmt->bindValue('contest_id', $contestId);
+        $stmt->execute();
+        $users = $stmt->fetchAll();
+
+        $this->usersCache = array();
+        $this->emailKey = array();
+        $this->loginKey = array();
+        foreach ($users as $row) {
+            $loginId = $row['login_id'];
+            if ($row['email']) {
+                $this->emailKey[$row['email']] = $loginId;
+            }
+            $this->loginKey[$row['login']] = $loginId;
+
+            $this->usersCache[$loginId] = array(
+                'name' => $row['name'],
+                'mail' => $row['email'],
+                'hash' => $row['hash'],
+                'login_id' => $row['login_id'],
+                'user' => $row['login'],
+                'grps' => array(),
+            );
+            // name, mail, (grps), hash, login_id
+        }
+
+        /*
+         * Cache group names
+         */
+        $stmt = $this->connection->prepare('select * from v_dokuwiki_group');
+        $stmt->execute();
+        $this->groupsCache = array();
+        foreach ($stmt->fetchAll() as $row) {
+            $this->groupsCache[$row['role_id']] = $row['name'];
+        }
+
+        $stmt = $this->connection->prepare('select * from v_dokuwiki_user_group where contest_id = :contest_id');
+        $stmt->bindValue('contest_id', $contestId);
+        $stmt->execute();
+        foreach ($stmt->fetchAll() as $row) {
+            $loginId = $row['login_id'];
+            $groupName = $this->groupsCache[$row['role_id']];
+            $this->usersCache[$loginId]['grps'][] = $groupName;
+        }
+
+        return true;
+    }
+
+    private function filterUsers($filter) {
+        $filtered = array();
+        if ($filter) {
+            foreach ($this->usersCache as $userData) {
+                foreach ($filter as $field => $value) {
+                    if (preg_match('/' . preg_quote($value, '/') . '/i', $userData[$field])) {
+                        $filtered[] = $userData;
+                        break;
+                    }
+                }
+            }
+        } else {
+            $filtered = $this->usersCache;
+        }
+        return $filtered;
+    }
+
 }
 
 // vim:ts=4:sw=4:et:
