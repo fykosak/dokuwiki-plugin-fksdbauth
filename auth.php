@@ -412,7 +412,7 @@ class auth_plugin_authfksdb extends DokuWiki_Auth_Plugin {
                     if (is_array($searched)) {
                         $searched = implode(':', $searched);
                     }
-                    if (preg_match('/' . preg_quote($value, '/') . '/i', $userData[$field])) {
+                    if (preg_match('/' . preg_quote($value, '/') . '/i', $searched)) {
                         $filtered[] = $userData;
                         break;
                     }
