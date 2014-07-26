@@ -1,7 +1,7 @@
 <?php
 
 /**
- * DokuWiki Plugin authfksdb (Auth Component)
+ * DokuWiki Plugin fksdbauth (Auth Component)
  *
  * @license GPL 2 http://www.gnu.org/licenses/gpl-2.0.html
  * @author  Michal Koutný <michal@fykos.cz>
@@ -10,7 +10,7 @@
 if (!defined('DOKU_INC'))
     die();
 
-class auth_plugin_authfksdb extends DokuWiki_Auth_Plugin {
+class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
 
     private static $contestMaps = array(
         'fykos' => 1,
