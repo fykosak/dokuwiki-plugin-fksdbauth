@@ -207,7 +207,9 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
         $filtered = array_values($this->filterUsers($filter));
 
         $result = array();
-        for ($i = $start; $i < min(count($filtered), $start + ($limit < 0 ? count($filtered) : $limit)); ++$i) {
+        $lower = $start;
+        $upper = min(count($filtered), $start + ($limit < 0 ? count($filtered) : $limit));
+        for ($i = $lower; $i < $upper; ++$i) {
             $result[] = $filtered[$i];
         }
         return $result;
@@ -396,6 +398,9 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
         $stmt->execute();
         foreach ($stmt->fetchAll() as $row) {
             $loginId = $row['login_id'];
+            if(!isset($this->usersCache[$loginId])) {
+                continue;
+            }
             $groupName = $this->groupsCache[$row['role_id']];
             $this->usersCache[$loginId]['grps'][] = $groupName;
         }
@@ -419,7 +424,7 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
                 }
             }
         } else {
-            $filtered = $this->usersCache;
+            $filtered = array_values($this->usersCache);
         }
         return $filtered;
     }
