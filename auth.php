@@ -43,10 +43,28 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
     private $loginKey;
 
     /**
+     * @var DokuWiki_Auth_Plugin
+     */
+    private $fallback;
+
+    /**
      * Constructor.
      */
     public function __construct() {
         parent::__construct(); // for compatibility
+
+        $this->success = $this->connectToDatabase() && $this->cacheUsers();
+        if (!$this->success && $this->getConf('fallback_enabled')) {
+            $this->fallback = plugin_load('auth', $this->getConf('fallback_plugin'));
+            $this->success = (bool)$this->fallback;
+            /*
+             * Using fallback auth plugin may potentially escalate privilegies 
+             * of the authenticated user (if the same user has different ACLs
+             * there). However, see auth_setup that eventully calls auth_login, 
+             * i.e. re-checking user credentials, which should mitigate this
+             * problem.
+             */
+        }
 
         $this->cando['addUser'] = false; // can Users be created?
         $this->cando['delUser'] = false; // can Users be deleted?
@@ -61,7 +79,6 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
         $this->cando['external'] = false; // does the module do external auth checking?
         $this->cando['logout'] = true; // can the user logout again? (eg. not possible with HTTP auth)
 
-        $this->success = $this->connectToDatabase() && $this->cacheUsers();
     }
 
     /**
@@ -110,6 +127,10 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      * @return  bool
      */
     public function checkPass($user, $pass) {
+        if ($this->fallback) {
+            return $this->fallback->checkPass($user, $pass);
+        }
+
         // first search by email, then by login
         $userData = $this->getUserData($user);
         if (!$userData) {
@@ -134,6 +155,10 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      * @return  array containing user data or false
      */
     public function getUserData($user) {
+        if ($this->fallback) {
+            return $this->fallback->getUserData($user);
+        }
+
         if (array_key_exists($user, $this->emailKey)) {
             return $this->usersCache[$this->emailKey[$user]];
         } else if (array_key_exists($user, $this->loginKey)) {
@@ -204,6 +229,10 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      * @return  array list of userinfo (refer getUserData for internal userinfo details)
      */
     public function retrieveUsers($start = 0, $limit = -1, $filter = null) {
+        if ($this->fallback) {
+            return $this->fallback->retrieveUsers($start, $limit, $filter);
+        }
+
         $filtered = array_values($this->filterUsers($filter));
 
         $result = array();
@@ -225,6 +254,10 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      * @return int
      */
     public function getUserCount($filter = array()) {
+        if ($this->fallback) {
+            return $this->fallback->getUserCount($filter);
+        }
+
         return count($this->filterUsers($filter));
     }
 
@@ -251,6 +284,10 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      * @return  array
      */
     public function retrieveGroups($start = 0, $limit = 0) {
+        if ($this->fallback) {
+            return $this->fallback->retrieveGroups($start, $limit);
+        }
+
         $result = array();
         $groups = array_values($this->groupsCache);
         for ($i = $start; $i < $start + ($limit == 0 ? count($this->groupsCache) : min(count($this->groupsCache), $limit)); ++$i) {
@@ -268,6 +305,10 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      * @return bool
      */
     public function isCaseSensitive() {
+        if ($this->fallback) {
+            return $this->fallback->isCaseSensitive();
+        }
+
         return true;
     }
 
@@ -284,6 +325,10 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      * @return string the cleaned username
      */
     public function cleanUser($user) {
+        if ($this->fallback) {
+            return $this->fallback->cleanUser($user);
+        }
+
         return $user;
     }
 
@@ -302,6 +347,10 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      * @return string the cleaned groupname
      */
     public function cleanGroup($group) {
+        if ($this->fallback) {
+            return $this->fallback->cleanGroup($group);
+        }
+
         return $group;
     }
 

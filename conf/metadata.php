@@ -10,4 +10,5 @@ $meta['mysql_user'] = array('string');
 $meta['mysql_password'] = array('password');
 $meta['mysql_database'] = array('string');
 $meta['contest'] = array('multichoice', '_choices' => array('fykos', 'vyfuk'));
-
+$meta['fallback_enabled'] = array('onoff');
+$meta['fallback_plugin'] = array('string');
