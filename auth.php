@@ -58,9 +58,9 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
             $this->fallback = plugin_load('auth', $this->getConf('fallback_plugin'));
             $this->success = (bool)$this->fallback;
             /*
-             * Using fallback auth plugin may potentially escalate privilegies 
+             * Using fallback auth plugin may potentially escalate privilegies
              * of the authenticated user (if the same user has different ACLs
-             * there). However, see auth_setup that eventully calls auth_login, 
+             * there). However, see auth_setup that eventully calls auth_login,
              * i.e. re-checking user credentials, which should mitigate this
              * problem.
              */
@@ -388,6 +388,7 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
         $passwd = $this->getConf('mysql_password');
         $options = array(
             PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES utf8',
+            PDO::ATTR_TIMEOUT => 3,
         );
         try {
             $this->connection = new PDO($dsn, $username, $passwd, $options);
