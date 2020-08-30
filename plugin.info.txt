@@ -1,7 +1,7 @@
 base   fksdbauth
-author Michal Koutný
+author Michal Koutný, Michal Červeňák
 email  michal@fykos.cz
-date   2014-03-15
+date   2020-08-30
 name   fksdbauth plugin
 desc   Authentication against FKSDB accounts.
 url    http://git@fykos.cz:dokuwiki/plugin-fksdbauth.git
