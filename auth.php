@@ -1,51 +1,50 @@
 <?php
 
+
+use dokuwiki\Extension\AuthPlugin;
+
 /**
  * DokuWiki Plugin fksdbauth (Auth Component)
  *
  * @license GPL 2 http://www.gnu.org/licenses/gpl-2.0.html
  * @author  Michal Koutný <michal@fykos.cz>
  */
-// must be run within Dokuwiki
-if (!defined('DOKU_INC'))
-    die();
+class auth_plugin_fksdbauth extends AuthPlugin {
 
-class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
-
-    private static $contestMaps = array(
+    private static array $contestMaps = [
         'fykos' => 1,
         'vyfuk' => 2,
-    );
+    ];
 
     /**
      * @var PDO
      */
-    private $connection;
+    private PDO $connection;
 
     /**
      * @var array items with array keys: name, mail, grps, hash, login_id
      */
-    private $usersCache;
+    private array $usersCache;
 
     /**
      * @var array
      */
-    private $groupsCache;
+    private array $groupsCache;
 
     /**
-     * @var email to user mapping
+     * @var mixed email to user mapping
      */
     private $emailKey;
 
     /**
-     * @var email to user mapping
+     * @var mixed email to user mapping
      */
     private $loginKey;
 
     /**
-     * @var DokuWiki_Auth_Plugin
+     * @var AuthPlugin
      */
-    private $fallback;
+    private AuthPlugin $fallback;
 
     /**
      * Constructor.
@@ -90,9 +89,9 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
     /**
      * Do all authentication [ OPTIONAL ]
      *
-     * @param   string  $user    Username
-     * @param   string  $pass    Cleartext Password
-     * @param   bool    $sticky  Cookie should not expire
+     * @param string $user Username
+     * @param string $pass Cleartext Password
+     * @param bool $sticky Cookie should not expire
      * @return  bool             true on successful auth
      */
     //public function trustExternal($user, $pass, $sticky = false) {
@@ -122,12 +121,12 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      *
      * May be ommited if trustExternal is used.
      *
-     * @param   string $user the user name
-     * @param   string $pass the clear text password
+     * @param string $user the user name
+     * @param string $pass the clear text password
      * @return  bool
      */
-    public function checkPass($user, $pass) {
-        if ($this->fallback) {
+    public function checkPass($user, $pass): bool {
+        if (isset($this->fallback)) {
             return $this->fallback->checkPass($user, $pass);
         }
 
@@ -151,17 +150,18 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      * mail string  email addres of the user
      * grps array   list of groups the user is in
      *
-     * @param   string $user the user name
-     * @return  array containing user data or false
+     * @param string $user the user name
+     * @param bool $requireGroups
+     * @return  array|bool containing user data or false
      */
-    public function getUserData($user) {
-        if ($this->fallback) {
+    public function getUserData($user, $requireGroups = true) {
+        if (isset($this->fallback)) {
             return $this->fallback->getUserData($user);
         }
 
         if (array_key_exists($user, $this->emailKey)) {
             return $this->usersCache[$this->emailKey[$user]];
-        } else if (array_key_exists($user, $this->loginKey)) {
+        } elseif (array_key_exists($user, $this->loginKey)) {
             return $this->usersCache[$this->loginKey[$user]];
         } else {
             return false;
@@ -179,11 +179,11 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      *
      * Set addUser capability when implemented
      *
-     * @param  string     $user
-     * @param  string     $pass
-     * @param  string     $name
-     * @param  string     $mail
-     * @param  null|array $grps
+     * @param string $user
+     * @param string $pass
+     * @param string $name
+     * @param string $mail
+     * @param null|array $grps
      * @return bool|null
      */
     //public function createUser($user, $pass, $name, $mail, $grps = null) {
@@ -196,8 +196,8 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      *
      * Set the mod* capabilities according to the implemented features
      *
-     * @param   string $user    nick of the user to be changed
-     * @param   array  $changes array of field/value pairs to be changed (password will be clear text)
+     * @param string $user nick of the user to be changed
+     * @param array $changes array of field/value pairs to be changed (password will be clear text)
      * @return  bool
      */
     //public function modifyUser($user, $changes) {
@@ -210,7 +210,7 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      *
      * Set delUser capability when implemented
      *
-     * @param   array  $users
+     * @param array $users
      * @return  int    number of users deleted
      */
     //public function deleteUsers($users) {
@@ -223,19 +223,19 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      *
      * Set getUsers capability when implemented
      *
-     * @param   int   $start     index of first user to be returned
-     * @param   int   $limit     max number of users to be returned
-     * @param   array $filter    array of field/pattern pairs, null for no filter
+     * @param int $start index of first user to be returned
+     * @param int $limit max number of users to be returned
+     * @param array $filter array of field/pattern pairs, null for no filter
      * @return  array list of userinfo (refer getUserData for internal userinfo details)
      */
-    public function retrieveUsers($start = 0, $limit = -1, $filter = null) {
-        if ($this->fallback) {
+    public function retrieveUsers($start = 0, $limit = -1, $filter = null): array {
+        if (isset($this->fallback)) {
             return $this->fallback->retrieveUsers($start, $limit, $filter);
         }
 
         $filtered = array_values($this->filterUsers($filter));
 
-        $result = array();
+        $result = [];
         $lower = $start;
         $upper = min(count($filtered), $start + ($limit < 0 ? count($filtered) : $limit));
         for ($i = $lower; $i < $upper; ++$i) {
@@ -250,11 +250,11 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      *
      * Set getUserCount capability when implemented
      *
-     * @param  array $filter array of field/pattern pairs, empty array for no filter
+     * @param array $filter array of field/pattern pairs, empty array for no filter
      * @return int
      */
-    public function getUserCount($filter = array()) {
-        if ($this->fallback) {
+    public function getUserCount($filter = []): int {
+        if (isset($this->fallback)) {
             return $this->fallback->getUserCount($filter);
         }
 
@@ -266,7 +266,7 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      *
      * Set addGroup capability when implemented
      *
-     * @param   string $group
+     * @param string $group
      * @return  bool
      */
     //public function addGroup($group) {
@@ -279,16 +279,16 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      *
      * Set getGroups capability when implemented
      *
-     * @param   int $start
-     * @param   int $limit
+     * @param int $start
+     * @param int $limit
      * @return  array
      */
-    public function retrieveGroups($start = 0, $limit = 0) {
-        if ($this->fallback) {
+    public function retrieveGroups($start = 0, $limit = 0): array {
+        if (isset($this->fallback)) {
             return $this->fallback->retrieveGroups($start, $limit);
         }
 
-        $result = array();
+        $result = [];
         $groups = array_values($this->groupsCache);
         for ($i = $start; $i < $start + ($limit == 0 ? count($this->groupsCache) : min(count($this->groupsCache), $limit)); ++$i) {
             $result[] = $groups[$i];
@@ -304,8 +304,8 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      *
      * @return bool
      */
-    public function isCaseSensitive() {
-        if ($this->fallback) {
+    public function isCaseSensitive(): bool {
+        if (isset($this->fallback)) {
             return $this->fallback->isCaseSensitive();
         }
 
@@ -324,8 +324,8 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      * @param string $user username
      * @return string the cleaned username
      */
-    public function cleanUser($user) {
-        if ($this->fallback) {
+    public function cleanUser($user): string {
+        if (isset($this->fallback)) {
             return $this->fallback->cleanUser($user);
         }
 
@@ -343,11 +343,11 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      *
      * Groupnames are to be passed without a leading '@' here.
      *
-     * @param  string $group groupname
+     * @param string $group groupname
      * @return string the cleaned groupname
      */
-    public function cleanGroup($group) {
-        if ($this->fallback) {
+    public function cleanGroup($group): string {
+        if (isset($this->fallback)) {
             return $this->fallback->cleanGroup($group);
         }
 
@@ -375,21 +375,21 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
      * each page load. Others might want to use their own checking here. If
      * unsure, do not override.
      *
-     * @param  string $user - The username
+     * @param string $user - The username
      * @return bool
      */
     //public function useSessionCache($user) {
     // FIXME implement
     //}
 
-    private function connectToDatabase() {
+    private function connectToDatabase(): bool {
         $dsn = 'mysql:host=' . $this->getConf('mysql_host') . ';dbname=' . $this->getConf('mysql_database');
         $username = $this->getConf('mysql_user');
         $passwd = $this->getConf('mysql_password');
-        $options = array(
+        $options = [
             PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES utf8',
             PDO::ATTR_TIMEOUT => 3,
-        );
+        ];
         try {
             $this->connection = new PDO($dsn, $username, $passwd, $options);
             return true;
@@ -399,7 +399,7 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
         }
     }
 
-    private function cacheUsers() {
+    private function cacheUsers(): bool {
         $contestId = self::$contestMaps[$this->getConf('contest')];
         /*
          * Cache users
@@ -412,9 +412,9 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
         $stmt->execute();
         $users = $stmt->fetchAll();
 
-        $this->usersCache = array();
-        $this->emailKey = array();
-        $this->loginKey = array();
+        $this->usersCache = [];
+        $this->emailKey = [];
+        $this->loginKey = [];
         foreach ($users as $row) {
             $loginId = $row['login_id'];
             if ($row['email']) {
@@ -422,14 +422,14 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
             }
             $this->loginKey[$row['login']] = $loginId;
 
-            $this->usersCache[$loginId] = array(
+            $this->usersCache[$loginId] = [
                 'name' => $row['name'],
                 'mail' => $row['email'],
                 'hash' => $row['hash'],
                 'login_id' => $row['login_id'],
                 'user' => $row['login'],
-                'grps' => array(),
-            );
+                'grps' => [],
+            ];
             // name, mail, (grps), hash, login_id
         }
 
@@ -438,7 +438,7 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
          */
         $stmt = $this->connection->prepare('select * from v_dokuwiki_group');
         $stmt->execute();
-        $this->groupsCache = array();
+        $this->groupsCache = [];
         foreach ($stmt->fetchAll() as $row) {
             $this->groupsCache[$row['role_id']] = $row['name'];
         }
@@ -448,7 +448,7 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
         $stmt->execute();
         foreach ($stmt->fetchAll() as $row) {
             $loginId = $row['login_id'];
-            if(!isset($this->usersCache[$loginId])) {
+            if (!isset($this->usersCache[$loginId])) {
                 continue;
             }
             $groupName = $this->groupsCache[$row['role_id']];
@@ -458,8 +458,8 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
         return true;
     }
 
-    private function filterUsers($filter) {
-        $filtered = array();
+    private function filterUsers($filter): array {
+        $filtered = [];
         if ($filter) {
             foreach ($this->usersCache as $userData) {
                 foreach ($filter as $field => $value) {
@@ -478,7 +478,4 @@ class auth_plugin_fksdbauth extends DokuWiki_Auth_Plugin {
         }
         return $filtered;
     }
-
 }
-
-// vim:ts=4:sw=4:et:
